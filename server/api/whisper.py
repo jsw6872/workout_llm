@@ -64,4 +64,9 @@ def audio_to_workout_content(file: UploadFile = File(...)):
     # LLM을 사용해 텍스트를 처리 (json 형태로 반환)
     workout_content_dict = llm.get_organised_workout_contents(script)
 
+    # # json파일로 저장
+    # import json
+    # with open(f'workout_contents/{now}_{only_file_name}.json', 'w', encoding = 'utf-8') as f:
+    #     json.dump(workout_content_dict, f, ensure_ascii=False)
+
     return workout_content_dict

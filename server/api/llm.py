@@ -30,3 +30,13 @@ def get_recommended_workouts(start_date_to_recommended: str, dates_num_to_recomm
     workout_content_recommended_list = llm.get_recommended_workout_contents(start_date_to_recommended, dates_num_to_recommended, workout_contents_from_previous_5_days)
     # 받은 결과를 반환
     return {"workout_content_recommended_list": workout_content_recommended_list}
+
+@router.post("/fake-recommended-workouts")
+def get_fake_recommended_workouts():
+    import time
+    time.sleep(8)
+    import json
+    with open('workout_contents/recommended_0828.json', 'r') as f:
+        fake_recommended_workouts = json.load(f)
+
+    return fake_recommended_workouts
