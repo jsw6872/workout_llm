@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'gym_record.dart';
-import 'loading.dart';
+import 'record_loading.dart';
 import 'calendar.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -14,8 +14,7 @@ class RecordingPage extends StatefulWidget {
   _RecordingPageState createState() => _RecordingPageState();
 }
 
-class _RecordingPageState extends State<RecordingPage>
-    with SingleTickerProviderStateMixin {
+class _RecordingPageState extends State<RecordingPage> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
   bool isRecording = false;
@@ -56,8 +55,7 @@ class _RecordingPageState extends State<RecordingPage>
   }
 
   Future<void> _sendAudioToServer(BuildContext context) async {
-    final ByteData data =
-        await rootBundle.load('assets/mp4/workout_content_test.mp3');
+    final ByteData data = await rootBundle.load('assets/mp4/workout_content_0827.mp3');
 
     final directory = await getTemporaryDirectory();
     String filePath = '${directory.path}/output.mp3';
@@ -68,7 +66,7 @@ class _RecordingPageState extends State<RecordingPage>
 
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => LoadingPage(index: 1)),
+      MaterialPageRoute(builder: (context) => ReloadLoadingPage()),
     );
 
     try {
@@ -95,8 +93,7 @@ class _RecordingPageState extends State<RecordingPage>
           ),
         );
       } else {
-        print(
-            'Failed to upload audio file. Status code: ${response.statusCode}');
+        print('Failed to upload audio file. Status code: ${response.statusCode}');
         Navigator.pop(context);
       }
     } catch (e) {
@@ -115,8 +112,8 @@ class _RecordingPageState extends State<RecordingPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              '운동 내용을 말해주세요.',
-              style: TextStyle(fontSize: 24),
+                '운동 내용을 말해주세요.',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)
             ),
             SizedBox(height: 20),
             GestureDetector(
@@ -134,16 +131,16 @@ class _RecordingPageState extends State<RecordingPage>
                     width: screenWidth * 0.8,
                     height: screenWidth * 0.8,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.blue.withOpacity(0.3),
+                        shape: BoxShape.circle,
+                        color: Color.fromRGBO(0, 38, 78, 0.5)
                     ),
                   ),
                   Container(
                     width: screenWidth * 0.8 - _animation.value,
                     height: screenWidth * 0.8 - _animation.value,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.blue,
+                        shape: BoxShape.circle,
+                        color: Color.fromRGBO(0, 38, 78, 1)
                     ),
                     child: Icon(
                       Icons.mic,
@@ -166,7 +163,7 @@ class _RecordingPageState extends State<RecordingPage>
               ),
               child: Text(
                 '완료',
-                style: GoogleFonts.notoSansGothic(),
+                style: TextStyle(color: Colors.black), // 텍스트 색상을 파란색으로 설정
               ),
             ),
           ],
@@ -187,20 +184,28 @@ class _RecordingPageState extends State<RecordingPage>
             label: '추천',
           ),
         ],
+        currentIndex: 0, // 기본 선택 아이템 설정 (첫 번째 아이템 선택)
+        selectedItemColor: Colors.blue, // 선택된 아이템의 색상을 파란색으로 설정
+        unselectedItemColor: Colors.grey, // 선택되지 않은 아이템의 색상 설정
         onTap: (index) {
           switch (index) {
             case 0:
-              // 홈 탭 클릭 시 동작
-              break;
-            case 1:
-              break;
-            case 2:
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CalendarPage(),
+                  builder: (context) => CalendarPage(newEvents: []),
                 ),
               );
+              break;
+            case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => RecordingPage(), // 기록 페이지로 이동
+                ),
+              );
+              break;
+            case 2:
               break;
           }
         },

@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'record_loading.dart';
+import 'recommend.dart';
 import 'recording.dart';
-import 'loading.dart';
 
 class CalendarPage extends StatefulWidget {
+  final List<Event>? newEvents;
+
+  CalendarPage({this.newEvents});
+
   @override
   _CalendarPageState createState() => _CalendarPageState();
 }
@@ -11,13 +19,117 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  Map<DateTime, List<Event>> _events = {}; // 날짜별 이벤트를 저장하는 맵
+  Map<DateTime, List<Event>> _events = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents(); // 앱 시작 시 이벤트 데이터를 로드
+
+    if (widget.newEvents != null && widget.newEvents!.isNotEmpty) {
+      _addEvents(widget.newEvents!);
+    }
+  }
+
+  void _addEvents(List<Event> events) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    for (var event in events) {
+      final eventDate = DateTime(event.date.year, event.date.month, event.date.day);
+      final normalizedDate = DateTime(eventDate.year, eventDate.month, eventDate.day);
+
+      if (_events[normalizedDate] != null) {
+        _events[normalizedDate]!.add(event);
+      } else {
+        _events[normalizedDate] = [event];
+      }
+    }
+
+    // 이벤트 데이터를 SharedPreferences에 저장
+    _saveEvents();
+  }
+
+  Future<void> _loadEvents() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? encodedData = prefs.getString('events');
+
+    if (encodedData != null) {
+      Map<String, dynamic> decodedData = json.decode(encodedData);
+      _events = decodedData.map((key, value) => MapEntry(
+          DateTime.parse(key),
+          (value as List).map((e) => Event.fromMap(e)).toList()));
+      setState(() {});
+    }
+  }
+
+  Future<void> _saveEvents() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String encodedData = json.encode(_events.map((key, value) => MapEntry(
+        key.toString(), value.map((e) => e.toMap()).toList())));
+    await prefs.setString('events', encodedData);
+  }
+
+  void _deleteEvent(Event event) {
+    setState(() {
+      final normalizedDay = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
+      _events[normalizedDay]?.remove(event);
+      if (_events[normalizedDay]?.isEmpty ?? false) {
+        _events.remove(normalizedDay);
+      }
+    });
+    // 삭제 후 업데이트된 데이터 저장
+    _saveEvents();
+  }
+
+  Future<void> _getRecommendedWorkouts(BuildContext context) async {
+    String url = 'http://10.0.2.2:8080/llm/fake-recommended-workouts';
+
+    // 로딩 페이지로 이동
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ReloadLoadingPage()),
+    );
+
+    try {
+      var response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        var jsonResponse = json.decode(utf8.decode(response.bodyBytes)); // UTF-8로 디코딩
+        // 로딩 페이지를 닫고 추천 페이지로 이동
+        Navigator.popUntil(context, (route) => route.isFirst);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RecommendPage(
+              data: jsonResponse,
+            ),
+          ),
+        );
+      } else {
+        print('Failed to get recommendations. Status code: ${response.statusCode}');
+        Navigator.pop(context);  // 에러 시에도 로딩 페이지를 닫음
+      }
+    } catch (e) {
+      print('Error occurred while getting recommendations: $e');
+      Navigator.pop(context);  // 에러 시에도 로딩 페이지를 닫음
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('캘린더'),
+        title: Text(
+          '캘린더',
+          style: TextStyle(fontWeight: FontWeight.bold), // '캘린더' 텍스트를 bold로 설정
+        ),
       ),
       body: Column(
         children: [
@@ -47,7 +159,7 @@ class _CalendarPageState extends State<CalendarPage> {
               markerDecoration: BoxDecoration(
                 shape: BoxShape.circle,
               ),
-              markersMaxCount: 3, // 최대 3개의 마커를 표시
+              markersMaxCount: 3,
             ),
             calendarBuilders: CalendarBuilders(
               markerBuilder: (context, date, events) {
@@ -76,39 +188,50 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
           Expanded(
-            child: ListView(
-              children: _getEventsForDay(_selectedDay ?? _focusedDay)
-                  .map((event) => ListTile(
-                        title: Text(event.title),
-                        leading: CircleAvatar(
-                          backgroundColor: _getCategoryColor(event.category),
+            child: _selectedDay != null && _getEventsForDay(_selectedDay!).isNotEmpty
+                ? ListView.builder(
+              itemCount: _getEventsForDay(_selectedDay!).length,
+              itemBuilder: (context, index) {
+                final event = _getEventsForDay(_selectedDay!)[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10.0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.5),
+                          spreadRadius: 1,
+                          blurRadius: 3,
+                          offset: Offset(0, 2),
                         ),
-                        trailing: IconButton(
-                          icon: Icon(Icons.delete),
-                          color: Colors.red,
-                          onPressed: () {
-                            setState(() {
-                              _events[_selectedDay]?.remove(event);
-                              if (_events[_selectedDay]?.isEmpty ?? false) {
-                                _events.remove(_selectedDay);
-                              }
-                            });
-                          },
-                        ),
-                      ))
-                  .toList(),
+                      ],
+                    ),
+                    child: ListTile(
+                      title: Text(event.title),
+                      subtitle: Text(event.details.replaceAll(', ', '\n')), // 줄바꿈 처리
+                      leading: Icon(Icons.star, color: _getCategoryColor(event.category)), // 별 모양 아이콘으로 변경
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete),
+                        color: Colors.red,
+                        onPressed: () {
+                          _deleteEvent(event);
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+            )
+                : Center(
+              child: Text(
+                '선택한 날짜에 운동 기록이 없습니다.',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if (_selectedDay != null) {
-            _showAddEventDialog(context);
-          }
-        },
-        child: Icon(Icons.add),
-        backgroundColor: Colors.blue,
       ),
       bottomNavigationBar: BottomNavigationBar(
         items: [
@@ -125,26 +248,29 @@ class _CalendarPageState extends State<CalendarPage> {
             label: '추천',
           ),
         ],
+        currentIndex: 0, // 기본 선택 아이템 설정 (첫 번째 아이템 선택)
+        selectedItemColor: Colors.blue, // 선택된 아이템의 색상을 파란색으로 설정
+        unselectedItemColor: Colors.grey, // 선택되지 않은 아이템의 색상 설정
         onTap: (index) {
           switch (index) {
             case 0:
-              // 홈 탭 클릭 시 동작
-              break;
-            case 1:
-              // 기록 탭 클릭 시 동작 - RecordingPage로 이동
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => RecordingPage()),
-              );
-              break;
-            case 2:
-              // "추천" 탭 클릭 시 CalendarPage로 이동
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CalendarPage(), // CalendarPage로 이동
+                  builder: (context) => CalendarPage(newEvents: []),
                 ),
               );
+              break;
+            case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => RecordingPage(),
+                ),
+              );
+              break;
+            case 2:
+              _getRecommendedWorkouts(context);  // 추천 요청
               break;
           }
         },
@@ -152,82 +278,9 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  void _showAddEventDialog(BuildContext context) {
-    final TextEditingController _eventController = TextEditingController();
-    String _selectedCategory = '빨간색'; // 기본 카테고리 설정
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text('할 일 추가'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _eventController,
-                    decoration: InputDecoration(labelText: '할 일 입력'),
-                  ),
-                  SizedBox(height: 10),
-                  DropdownButton<String>(
-                    value: _selectedCategory,
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _selectedCategory = newValue!;
-                      });
-                    },
-                    items: <String>['빨간색', '파란색', '노란색']
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: Text('취소'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_eventController.text.isNotEmpty) {
-                      setState(() {
-                        if (_events[_selectedDay] != null) {
-                          _events[_selectedDay]!.add(Event(
-                            title: _eventController.text,
-                            category: _selectedCategory,
-                          ));
-                        } else {
-                          _events[_selectedDay!] = [
-                            Event(
-                              title: _eventController.text,
-                              category: _selectedCategory,
-                            )
-                          ];
-                        }
-                      });
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  child: Text('추가'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   List<Event> _getEventsForDay(DateTime day) {
-    return _events[day] ?? [];
+    final normalizedDay = DateTime(day.year, day.month, day.day);
+    return _events[normalizedDay] ?? [];
   }
 
   Color _getCategoryColor(String category) {
@@ -238,6 +291,10 @@ class _CalendarPageState extends State<CalendarPage> {
         return Colors.blue;
       case '노란색':
         return Colors.yellow;
+      case '초록색':
+        return Colors.green;
+      case '검정색':
+        return Colors.black;
       default:
         return Colors.grey;
     }
@@ -247,6 +304,33 @@ class _CalendarPageState extends State<CalendarPage> {
 class Event {
   final String title;
   final String category;
+  final DateTime date;
+  final String details;
 
-  Event({required this.title, required this.category});
+  Event({
+    required this.title,
+    required this.category,
+    required this.date,
+    required this.details,
+  });
+
+  // JSON으로 변환하기 위한 메서드
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'category': category,
+      'date': date.toIso8601String(),
+      'details': details,
+    };
+  }
+
+  // JSON에서 객체를 생성하기 위한 메서드
+  factory Event.fromMap(Map<String, dynamic> map) {
+    return Event(
+      title: map['title'],
+      category: map['category'],
+      date: DateTime.parse(map['date']),
+      details: map['details'],
+    );
+  }
 }
