@@ -1,68 +1,51 @@
 import 'package:flutter/material.dart';
 import 'recording.dart';
-import 'loading.dart';
+import 'calendar.dart';
 
 class GymRecordPage extends StatefulWidget {
+  final DateTime selectedDate;
+  final Function(Event) onSave;
   final Map<String, dynamic> data; // jsonResponse 데이터를 받을 변수 추가
 
-  GymRecordPage({this.data = const {}}); // 생성자에 data를 추가
+  GymRecordPage({
+    required this.selectedDate,
+    required this.onSave,
+    this.data = const {},
+  });
 
   @override
   _GymRecordPageState createState() => _GymRecordPageState();
 }
 
 class _GymRecordPageState extends State<GymRecordPage> {
-  List<ExerciseSection> exerciseSections = [ExerciseSection(0)]; // 운동 섹션 리스트
-  int currentIndex = 0; // 현재 보고 있는 운동 섹션의 인덱스
+  List<ExerciseSection> exerciseSections = []; // 운동 섹션 리스트
 
   @override
   void initState() {
     super.initState();
 
-    // 운동 종목의 총 개수를 계산
-    int totalExercises = 0;
-
     if (widget.data.containsKey('exercises')) {
       Map<String, dynamic> exercises = widget.data['exercises'];
 
-      // 각 카테고리와 부위에 대해 반복하여 운동 종목 개수를 계산
       exercises.forEach((category, bodyParts) {
         bodyParts.forEach((bodyPart, exerciseList) {
-          if (exerciseList is Map<String, dynamic>) {  // 이 부분에서 명확하게 타입을 지정
-            totalExercises += exerciseList.keys.length;
+          if (exerciseList is Map<String, dynamic>) {
+            exerciseList.forEach((exerciseName, sets) {
+              exerciseSections.add(ExerciseSection(
+                exerciseSections.length,
+                category: category,
+                bodyPart: bodyPart,
+                exerciseName: exerciseName,
+                sets: sets,
+              ));
+            });
           }
         });
       });
     }
 
     // 총 운동 종목 개수 출력
-    print("Total number of exercises: $totalExercises");
-    print("Received JSON Response: ${widget.data["exercises"]}");
-  }
-
-  void _addExerciseSection() {
-    setState(() {
-      exerciseSections.add(ExerciseSection(exerciseSections.length));
-      currentIndex = exerciseSections.length - 1;
-    });
-  }
-
-  void _nextSection() {
-    if (currentIndex < exerciseSections.length - 1) {
-      setState(() {
-        currentIndex++;
-      });
-    } else {
-      _addExerciseSection();
-    }
-  }
-
-  void _previousSection() {
-    if (currentIndex > 0) {
-      setState(() {
-        currentIndex--;
-      });
-    }
+    print("Total number of exercises: ${exerciseSections.length}");
   }
 
   @override
@@ -70,6 +53,19 @@ class _GymRecordPageState extends State<GymRecordPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('기록 생성하기'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.save),
+            onPressed: () {
+              // 저장 버튼 클릭 시 이벤트를 캘린더로 전달
+              widget.onSave(Event(
+                title: '운동 기록',
+                category: '빨간색', // 예시로 설정된 카테고리
+              ));
+              Navigator.pop(context); // 저장 후 이전 화면으로 돌아가기
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -79,45 +75,19 @@ class _GymRecordPageState extends State<GymRecordPage> {
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      height: 100, // 첫 번째 SizedBox의 높이
-                      child: DatePickerField(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5.0), // 상하로 5의 마진 추가
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${exerciseSections[currentIndex].index+1}번째 운동내용',
-                            style: TextStyle(fontSize: 20),
-                          ),
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.arrow_left),
-                                onPressed: _previousSection,
-                                color: currentIndex > 0 ? Colors.black : Colors.grey,
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.arrow_right),
-                                onPressed: _nextSection,
-                              ),
-                            ],
-                          ),
-                        ],
+                  children: exerciseSections.map((section) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey), // 테두리 추가
+                          borderRadius: BorderRadius.circular(5.0),
+                        ),
+                        padding: const EdgeInsets.all(16.0),
+                        child: _buildExerciseSection(section),
                       ),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey), // 테두리 추가
-                        borderRadius: BorderRadius.circular(5.0),
-                      ),
-                      padding: const EdgeInsets.all(16.0),
-                      child: _buildExerciseSection(exerciseSections[currentIndex]),
-                    ),
-                  ],
+                    );
+                  }).toList(),
                 ),
               ),
             ),
@@ -142,21 +112,21 @@ class _GymRecordPageState extends State<GymRecordPage> {
         onTap: (index) {
           switch (index) {
             case 0:
-            // 홈 탭 클릭 시 동작
+              // 홈 탭 클릭 시 동작
               break;
             case 1:
-            // 기록 탭 클릭 시 동작 - RecordingPage로 이동
+              // 기록 탭 클릭 시 동작 - RecordingPage로 이동
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => RecordingPage()),
               );
               break;
             case 2:
-            // 추천 탭 클릭 시 동작 - LoadingPage로 이동
+              // "추천" 탭 클릭 시 CalendarPage로 이동
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => LoadingPage(index: exerciseSections.length),
+                  builder: (context) => CalendarPage(), // CalendarPage로 이동
                 ),
               );
               break;
@@ -178,18 +148,7 @@ class _GymRecordPageState extends State<GymRecordPage> {
               Text('운동 종류: ', style: TextStyle(fontSize: 16)),
               SizedBox(width: 10),
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                  ),
-                  items: ['근력', '유산소'].map((String category) {
-                    return DropdownMenuItem(
-                      value: category,
-                      child: Text(category),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {},
-                ),
+                child: Text(section.category),
               ),
             ],
           ),
@@ -202,18 +161,7 @@ class _GymRecordPageState extends State<GymRecordPage> {
               Text('운동 부위: ', style: TextStyle(fontSize: 16)),
               SizedBox(width: 10),
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                  ),
-                  items: ['가슴', '등', '어깨', '팔', '복근', '하체'].map((String bodyPart) {
-                    return DropdownMenuItem(
-                      value: bodyPart,
-                      child: Text(bodyPart),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {},
-                ),
+                child: Text(section.bodyPart),
               ),
             ],
           ),
@@ -226,12 +174,7 @@ class _GymRecordPageState extends State<GymRecordPage> {
               Text('운동 종목: ', style: TextStyle(fontSize: 16)),
               SizedBox(width: 10),
               Expanded(
-                child: TextFormField(
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText: '운동 종목 입력',
-                  ),
-                ),
+                child: Text(section.exerciseName),
               ),
             ],
           ),
@@ -266,109 +209,61 @@ class _GymRecordPageState extends State<GymRecordPage> {
 
   Widget _buildSetRow(SetRecord setRecord, int index, ExerciseSection section) {
     return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-    child: Row(
-    children: [
-      Text('Set ${setRecord.setNumber}', style: TextStyle(fontSize: 16)),
-      SizedBox(width: 20),
-      Expanded(
-        child: TextFormField(
-          decoration: InputDecoration(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15.0),
-            ),
-            contentPadding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
-            suffixIcon: Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: Text(
-                'kg',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            ),
-            suffixIconConstraints: BoxConstraints(
-              minWidth: 0,
-              minHeight: 0,
-            ),
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Text('Set ${setRecord.setNumber}', style: TextStyle(fontSize: 16)),
+          SizedBox(width: 20),
+          Expanded(
+            child: Text('${setRecord.weight} ${setRecord.unit}'),
           ),
-          keyboardType: TextInputType.number,
-          style: TextStyle(fontSize: 16),
-        ),
-      ),
-      SizedBox(width: 20),
-      Expanded(
-        child: TextFormField(
-          decoration: InputDecoration(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15.0),
-            ),
-            contentPadding: EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
-            suffixIcon: Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: Text(
-                '회',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            ),
-            suffixIconConstraints: BoxConstraints(
-              minWidth: 0,
-              minHeight: 0,
-            ),
+          SizedBox(width: 20),
+          Expanded(
+            child: Text('${setRecord.reps} 회'),
           ),
-          keyboardType: TextInputType.number,
-          style: TextStyle(fontSize: 16),
-        ),
+        ],
       ),
-      SizedBox(width: 20),
-      _buildAddRemoveButton(index, section),
-    ],
-    ),
     );
-  }
-
-  Widget _buildAddRemoveButton(int index, ExerciseSection section) {
-    bool isFirst = index == 0;
-    return OutlinedButton(
-      onPressed: isFirst ? () => _addSet(section) : () => _removeSet(index, section),
-      style: OutlinedButton.styleFrom(
-        shape: CircleBorder(),
-        padding: EdgeInsets.all(10),
-        side: BorderSide(color: Colors.black),
-      ),
-      child: Icon(isFirst ? Icons.add : Icons.remove, color: Colors.black),
-    );
-  }
-
-  void _addSet(ExerciseSection section) {
-    setState(() {
-      if (section.setRecords.length < 10) {
-        section.setRecords.add(SetRecord(setNumber: section.setRecords.length + 1));
-      }
-    });
-  }
-
-  void _removeSet(int index, ExerciseSection section) {
-    setState(() {
-      if (section.setRecords.length > 1) {
-        section.setRecords.removeAt(index);
-        for (int i = 0; i < section.setRecords.length; i++) {
-          section.setRecords[i].setNumber = i + 1;
-        }
-      }
-    });
   }
 }
 
 class SetRecord {
   int setNumber;
+  String weight;
+  String unit;
+  int reps;
 
-  SetRecord({required this.setNumber});
+  SetRecord({
+    required this.setNumber,
+    required this.weight,
+    required this.unit,
+    required this.reps,
+  });
 }
 
 class ExerciseSection {
   final int index;
+  String category;
+  String bodyPart;
+  String exerciseName;
   List<SetRecord> setRecords;
 
-  ExerciseSection(this.index) : setRecords = [SetRecord(setNumber: 1)];
+  ExerciseSection(
+    this.index, {
+    required this.category,
+    required this.bodyPart,
+    required this.exerciseName,
+    required List<dynamic> sets,
+  }) : setRecords = sets
+            .asMap()
+            .entries
+            .map((entry) => SetRecord(
+                  setNumber: entry.key + 1,
+                  weight: entry.value[0].toString(), // weight 매개변수 추가
+                  unit: entry.value[1].toString(), // unit 매개변수 추가
+                  reps: entry.value[2], // reps 매개변수 추가
+                ))
+            .toList();
 }
 
 class DatePickerField extends StatefulWidget {
@@ -414,4 +309,3 @@ class _DatePickerFieldState extends State<DatePickerField> {
     );
   }
 }
-

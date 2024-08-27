@@ -3,17 +3,19 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/services.dart'; // AssetBundle 사용을 위해 추가
+import 'package:flutter/services.dart';
 import 'gym_record.dart';
 import 'loading.dart';
-import 'package:path_provider/path_provider.dart'; // path_provider 사용
+import 'calendar.dart';
+import 'package:path_provider/path_provider.dart';
 
 class RecordingPage extends StatefulWidget {
   @override
   _RecordingPageState createState() => _RecordingPageState();
 }
 
-class _RecordingPageState extends State<RecordingPage> with SingleTickerProviderStateMixin {
+class _RecordingPageState extends State<RecordingPage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
   bool isRecording = false;
@@ -54,10 +56,9 @@ class _RecordingPageState extends State<RecordingPage> with SingleTickerProvider
   }
 
   Future<void> _sendAudioToServer(BuildContext context) async {
-    // 1. assets 폴더에서 파일을 로드합니다.
-    final ByteData data = await rootBundle.load('assets/mp4/workout_content_test.mp3');
+    final ByteData data =
+        await rootBundle.load('assets/mp4/workout_content_test.mp3');
 
-    // 2. 임시 디렉토리에 파일을 저장합니다.
     final directory = await getTemporaryDirectory();
     String filePath = '${directory.path}/output.mp3';
     final File file = File(filePath);
@@ -65,47 +66,48 @@ class _RecordingPageState extends State<RecordingPage> with SingleTickerProvider
 
     String url = 'http://10.0.2.2:8080/whisper/audio-to-workout-content';
 
-    // 3. 서버 요청 후 로딩 페이지로 이동
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => LoadingPage(index: 1)),
     );
 
     try {
-      // 4. Multipart request를 생성하여 MP3 파일을 전송합니다.
       var request = http.MultipartRequest('POST', Uri.parse(url));
       request.files.add(await http.MultipartFile.fromPath('file', file.path));
 
-      // 5. 서버에 요청을 보내고 응답을 기다립니다.
       var response = await request.send();
 
       if (response.statusCode == 200) {
-        // 응답이 성공적이면 GymRecordPage로 이동
         var responseBody = await response.stream.bytesToString();
         var jsonResponse = json.decode(responseBody);
 
-        // GymRecordPage로 jsonResponse 데이터를 함께 넘겨줍니다.
         Navigator.popUntil(context, (route) => route.isFirst);
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => GymRecordPage(data: jsonResponse), // GymRecordPage로 jsonResponse 전달
+            builder: (context) => GymRecordPage(
+              selectedDate: DateTime.now(), // 여기에 올바른 날짜를 넘겨야 합니다.
+              onSave: (newEvent) {
+                // 여기에 이벤트 저장 로직 추가
+              },
+              data: jsonResponse, // 이 부분을 추가하여 데이터를 전달
+            ),
           ),
         );
       } else {
-        print('Failed to upload audio file. Status code: ${response.statusCode}');
-        Navigator.pop(context); // 로딩 페이지 닫기
+        print(
+            'Failed to upload audio file. Status code: ${response.statusCode}');
+        Navigator.pop(context);
       }
     } catch (e) {
       print('Error occurred while sending audio: $e');
-      Navigator.pop(context); // 로딩 페이지 닫기
+      Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;
-    List<SetRecord> setRecords = [SetRecord(setNumber: 1)];
 
     return Scaffold(
       body: Center(
@@ -164,7 +166,7 @@ class _RecordingPageState extends State<RecordingPage> with SingleTickerProvider
               ),
               child: Text(
                 '완료',
-                style: GoogleFonts.notoSansGothic(), // 한글 폰트 적용
+                style: GoogleFonts.notoSansGothic(),
               ),
             ),
           ],
@@ -188,7 +190,7 @@ class _RecordingPageState extends State<RecordingPage> with SingleTickerProvider
         onTap: (index) {
           switch (index) {
             case 0:
-            // 홈 탭 클릭 시 동작
+              // 홈 탭 클릭 시 동작
               break;
             case 1:
               break;
@@ -196,7 +198,7 @@ class _RecordingPageState extends State<RecordingPage> with SingleTickerProvider
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => LoadingPage(index: setRecords.length),
+                  builder: (context) => CalendarPage(),
                 ),
               );
               break;
@@ -206,4 +208,3 @@ class _RecordingPageState extends State<RecordingPage> with SingleTickerProvider
     );
   }
 }
-
