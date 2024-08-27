@@ -62,7 +62,6 @@ def audio_to_workout_content(file: UploadFile = File(...)):
     ##################################################################
 
     # LLM을 사용해 텍스트를 처리 (json 형태로 반환)
-
     workout_content_dict = llm.get_organised_workout_contents(script)
 
     return workout_content_dict

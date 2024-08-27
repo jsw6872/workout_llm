@@ -1,4 +1,4 @@
-SYSTEM_PROMPT = """
+SYSTEM_PROMPT_FORMATTING = """
 <instruction>
 1. <workout contents>는 내가 운동한 날짜와 요일, 운동 부위, 그리고 운동 내용이야. 그리고 <workout contents>는 나의 음성을 녹음한 파일을 whisper 모델을 사용해서 텍스트로 만든 script야.
 2. 너는 해당 내용을 기반으로, <output format>에 맞게 운동 내용을 정리해줘. 이외에 다른 내용은 절대 필요없어.
@@ -40,9 +40,9 @@ SYSTEM_PROMPT = """
 }
 """
 
-USER_PROMPT_FORMAT = """
+USER_PROMPT_FORMAT_FORMATTING = """
 <body parts>
-하체, 등, 가슴, 어깨, 팔, 코어, 전신
+하체, 등, 가슴, 어깨, 팔, 코어
 
 <workout contents>
 {workout_contents}

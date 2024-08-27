@@ -3,7 +3,7 @@ from typing import *
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from api import whisper
+from api import whisper, database, llm
 
 app = FastAPI()
 
@@ -16,6 +16,8 @@ app.add_middleware(
 )
 
 app.include_router(whisper.router)
+app.include_router(database.router)
+app.include_router(llm.router)
 
 @app.get("/ping")
 def ping():
