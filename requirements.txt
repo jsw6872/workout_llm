@@ -1,6 +1,0 @@
-uvicorn[standard]
-fastapi[all]<=0.103.2
-
-python-dotenv
-openai
-pydub
